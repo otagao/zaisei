@@ -41,12 +41,18 @@ const expenseByCategory = transactions
     return acc;
   }, {} as Record<string, number>);
 
+// Sort categories by amount (largest first)
+const sortedIncomeData = Object.entries(incomeByCategory)
+  .sort(([,a], [,b]) => b - a);
+const sortedExpenseData = Object.entries(expenseByCategory)
+  .sort(([,a], [,b]) => b - a);
+
 // Create chart data
 const chartData = {
-  incomeCategories: Object.keys(incomeByCategory),
-  incomeAmounts: Object.values(incomeByCategory),
-  expenseCategories: Object.keys(expenseByCategory),
-  expenseAmounts: Object.values(expenseByCategory),
+  incomeCategories: sortedIncomeData.map(([category]) => category),
+  incomeAmounts: sortedIncomeData.map(([,amount]) => amount),
+  expenseCategories: sortedExpenseData.map(([category]) => category),
+  expenseAmounts: sortedExpenseData.map(([,amount]) => amount),
   totalIncome,
   totalExpense
 };
@@ -70,7 +76,7 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>月次収支ダッシュボード</title>
+		<title>収支ダッシュボード</title>
 		<style>
 			body {
 				font-family: system-ui, sans-serif;
@@ -122,6 +128,7 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 				border-radius: 8px;
 				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 				text-align: center;
+				font-weight: bold;
 			}
 			@media (min-width: 768px) {
 				.summary-item {
@@ -175,7 +182,7 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 	</head>
 	<body>
 		<div class="header">
-			<h1>月次収支ダッシュボード</h1>
+			<h1>収支ダッシュボード</h1>
 			<div class="balance">
 				{isPostJuly2025 ? (
 					netBalance >= 0 ? (
@@ -245,11 +252,18 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 				// Initialize Chart.js
 				const ctx = document.getElementById('incomeExpenseChart').getContext('2d');
 				
+				// Helper function to calculate opacity based on index position  
+				const getOpacity = (index, totalCount) => {
+					if (totalCount === 1) return 0.8;
+					// Start from 0.9 and decrease by 0.1 for each subsequent category
+					return Math.max(0.5, 0.9 - (index * 0.1));
+				};
+				
 				// Create datasets for income categories
 				const incomeDatasets = chartData.incomeCategories.map((category, index) => ({
 					label: category,
 					data: [chartData.incomeAmounts[index], null],
-					backgroundColor: `rgba(4, 132, 75, ${0.5 + (index / chartData.incomeCategories.length) * 0.5})`,
+					backgroundColor: `rgba(4, 132, 75, ${getOpacity(index, chartData.incomeCategories.length)})`,
 					borderColor: `rgba(4, 132, 75, 1)`,
 					borderWidth: 1,
 					stack: 'total',
@@ -260,7 +274,7 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 				const expenseDatasets = chartData.expenseCategories.map((category, index) => ({
 					label: category,
 					data: [null, chartData.expenseAmounts[index]],
-					backgroundColor: `rgba(199, 31, 55, ${0.5 + (index / chartData.expenseCategories.length) * 0.5})`,
+					backgroundColor: `rgba(199, 31, 55, ${getOpacity(index, chartData.expenseCategories.length)})`,
 					borderColor: `rgba(199, 31, 55, 1)`,
 					borderWidth: 1,
 					stack: 'total',
