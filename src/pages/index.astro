@@ -1,0 +1,325 @@
+---
+// @ts-nocheck
+import { getCollection } from 'astro:content';
+
+// Get all transactions
+const transactions = await getCollection('transactions');
+
+// Check if we're past July 2025
+const currentDate = new Date();
+const isPostJuly2025 = currentDate.getFullYear() > 2025 || 
+                      (currentDate.getFullYear() === 2025 && currentDate.getMonth() > 6);
+
+// Calculate totals based on all transaction data
+const totalIncome = transactions
+  .filter(t => t.data.type === 'income')
+  .reduce((sum, t) => sum + t.data.amount, 0);
+
+const totalExpense = transactions
+  .filter(t => t.data.type === 'expense')
+  .reduce((sum, t) => sum + t.data.amount, 0);
+
+const netBalance = totalIncome - totalExpense;
+
+// Calculate days remaining until end of month
+const today = new Date();
+const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+const daysRemaining = Math.max(0, lastDayOfMonth.getDate() - today.getDate());
+
+// Group by category for charts
+const incomeByCategory = transactions
+  .filter(t => t.data.type === 'income')
+  .reduce((acc, t) => {
+    acc[t.data.category] = (acc[t.data.category] || 0) + t.data.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+const expenseByCategory = transactions
+  .filter(t => t.data.type === 'expense')
+  .reduce((acc, t) => {
+    acc[t.data.category] = (acc[t.data.category] || 0) + t.data.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+// Create chart data
+const chartData = {
+  incomeCategories: Object.keys(incomeByCategory),
+  incomeAmounts: Object.values(incomeByCategory),
+  expenseCategories: Object.keys(expenseByCategory),
+  expenseAmounts: Object.values(expenseByCategory),
+  totalIncome,
+  totalExpense
+};
+
+// Sort transactions by date (newest first)
+const sortedTransactions = transactions.sort((a, b) => 
+  new Date(b.data.date).getTime() - new Date(a.data.date).getTime()
+);
+
+// Format month name for display
+const monthNames = [
+  '1月', '2月', '3月', '4月', '5月', '6月',
+  '7月', '8月', '9月', '10月', '11月', '12月'
+];
+const currentMonthName = monthNames[currentDate.getMonth()];
+---
+
+<html lang="ja">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>月次収支ダッシュボード</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 10px;
+				background-color: #f5f5f5;
+			}
+			@media (min-width: 768px) {
+				body {
+					padding: 20px;
+				}
+			}
+			.header {
+				text-align: center;
+				margin-bottom: 30px;
+			}
+			.balance {
+				font-size: 2rem;
+				font-weight: bold;
+				margin: 10px 0;
+			}
+			.positive {
+				color: #04844b;
+			}
+			.negative {
+				color: #c71f37;
+			}
+			.days-remaining {
+				color: #2563eb;
+				font-weight: bold;
+			}
+			.summary {
+				display: flex;
+				flex-direction: column;
+				margin: 30px 0;
+				gap: 15px;
+			}
+			@media (min-width: 768px) {
+				.summary {
+					flex-direction: row;
+					justify-content: space-around;
+					gap: 20px;
+				}
+			}
+			.summary-item {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				text-align: center;
+			}
+			@media (min-width: 768px) {
+				.summary-item {
+					flex: 1;
+				}
+			}
+			.chart-container {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				margin: 30px 0;
+			}
+			#chart-wrapper {
+				height: 300px;
+				position: relative;
+			}
+			.timeline {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			}
+			.transaction-item {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 15px 0;
+				border-bottom: 1px solid #eee;
+			}
+			.transaction-item:last-child {
+				border-bottom: none;
+			}
+			.transaction-category {
+				color: #888;
+				font-size: 0.8em;
+				background: #f0f0f0;
+				padding: 2px 8px;
+				border-radius: 4px;
+				display: inline-block;
+				margin: 2px 0;
+			}
+			.transaction-date {
+				color: #666;
+				font-size: 0.9em;
+			}
+			.transaction-amount {
+				font-weight: bold;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="header">
+			<h1>月次収支ダッシュボード</h1>
+			<div class="balance">
+				{isPostJuly2025 ? (
+					netBalance >= 0 ? (
+						<span class="positive">otagaoは財政健全化に成功しました🎉</span>
+					) : (
+						<span class="negative">otagaoは財政健全化に失敗しました😢</span>
+					)
+				) : (
+					netBalance >= 0 ? (
+						<span class="positive">財政健全化達成🎉</span>
+					) : (
+						<span>
+							残り<span class="days-remaining">{daysRemaining}日</span>で
+							<span class="negative">¥{Math.abs(netBalance).toLocaleString()}</span>！
+						</span>
+					)
+				)}
+			</div>
+		</div>
+
+		<div class="summary">
+			<div class="summary-item">
+				総収入: <span class="positive">¥{totalIncome.toLocaleString()}</span>
+			</div>
+			<div class="summary-item">
+				総支出: <span class="negative">¥{totalExpense.toLocaleString()}</span>
+			</div>
+		</div>
+
+		<div class="chart-container">
+			<h3>収入 vs 支出</h3>
+			<div id="chart-wrapper">
+				<canvas id="incomeExpenseChart"></canvas>
+			</div>
+		</div>
+
+		<div class="timeline">
+			<h3>取引履歴</h3>
+			{sortedTransactions.length > 0 ? (
+				<div>
+					{sortedTransactions.map(transaction => (
+						<div class="transaction-item">
+							<div>
+								<div>{transaction.data.title}</div>
+								<div class="transaction-category">
+									{transaction.data.category}
+								</div>
+								<div class="transaction-date">
+									{new Date(transaction.data.date).toLocaleDateString('ja-JP')}
+								</div>
+							</div>
+							<div class={`transaction-amount ${transaction.data.type === 'income' ? 'positive' : 'negative'}`}>
+								¥{transaction.data.amount.toLocaleString()}
+							</div>
+						</div>
+					))}
+				</div>
+			) : (
+				<p>取引データがありません</p>
+			)}
+		</div>
+
+		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		<script define:vars={{ chartData }} is:inline>
+			// Wait for DOM to load
+			document.addEventListener('DOMContentLoaded', function() {
+				// Initialize Chart.js
+				const ctx = document.getElementById('incomeExpenseChart').getContext('2d');
+				
+				// Create datasets for income categories
+				const incomeDatasets = chartData.incomeCategories.map((category, index) => ({
+					label: category,
+					data: [chartData.incomeAmounts[index], null],
+					backgroundColor: `rgba(4, 132, 75, ${0.5 + (index / chartData.incomeCategories.length) * 0.5})`,
+					borderColor: `rgba(4, 132, 75, 1)`,
+					borderWidth: 1,
+					stack: 'total',
+					yAxisID: 'y'
+				}));
+				
+				// Create datasets for expense categories
+				const expenseDatasets = chartData.expenseCategories.map((category, index) => ({
+					label: category,
+					data: [null, chartData.expenseAmounts[index]],
+					backgroundColor: `rgba(199, 31, 55, ${0.5 + (index / chartData.expenseCategories.length) * 0.5})`,
+					borderColor: `rgba(199, 31, 55, 1)`,
+					borderWidth: 1,
+					stack: 'total',
+					yAxisID: 'y'
+				}));
+				
+				new Chart(ctx, {
+					type: 'bar',
+					data: {
+						labels: ['収入', '支出'],
+						datasets: [...incomeDatasets, ...expenseDatasets]
+					},
+					options: {
+						indexAxis: 'y',
+						responsive: true,
+						maintainAspectRatio: false,
+						plugins: {
+							legend: {
+								display: true,
+								position: 'bottom'
+							},
+							title: {
+								display: false
+							},
+							tooltip: {
+								callbacks: {
+									label: function(context) {
+										return `${context.dataset.label}: ¥${context.parsed.x.toLocaleString()}`;
+									}
+								}
+							}
+						},
+						scales: {
+							x: {
+								stacked: true,
+								beginAtZero: true,
+								ticks: {
+									callback: function(value) {
+										return `¥${value.toLocaleString()}`;
+									}
+								}
+							},
+							y: {
+								type: 'category',
+								stacked: true,
+								offset: true,
+								grid: {
+									offset: true,
+									display: true,
+									drawTicks: false
+								},
+								ticks: {
+									padding: 10
+								}
+							}
+						}
+					}
+				});
+			});
+		</script>
+	</body>
+</html>
