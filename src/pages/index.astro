@@ -62,12 +62,10 @@ const sortedTransactions = transactions.sort((a, b) =>
   new Date(b.data.date).getTime() - new Date(a.data.date).getTime()
 );
 
-// Format month name for display
-const monthNames = [
-  '1月', '2月', '3月', '4月', '5月', '6月',
-  '7月', '8月', '9月', '10月', '11月', '12月'
-];
-const currentMonthName = monthNames[currentDate.getMonth()];
+
+// Load wishlist data
+const wishlistData = await import('../wishlist.json');
+const wishlist = wishlistData.default;
 ---
 
 <html lang="ja">
@@ -178,6 +176,85 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 			.transaction-amount {
 				font-weight: bold;
 			}
+			.wishlist {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				margin: 30px 0;
+			}
+			.wishlist-item {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 15px 0;
+				border-bottom: 1px solid #eee;
+			}
+			.wishlist-item:last-child {
+				border-bottom: none;
+			}
+			.wishlist-item.checked {
+				text-decoration: line-through;
+				color: #888;
+			}
+			.wishlist-left {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+			.wishlist-checkbox {
+				width: 18px;
+				height: 18px;
+				accent-color: #04844b;
+			}
+			.wishlist-category {
+				color: #888;
+				font-size: 0.8em;
+				background: #f0f0f0;
+				padding: 2px 8px;
+				border-radius: 4px;
+				display: inline-block;
+				margin-left: 10px;
+			}
+			.wishlist-price {
+				font-weight: bold;
+				color: #666;
+			}
+			.share-section {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				margin: 30px 0;
+				text-align: center;
+			}
+			.share-button {
+				display: inline-flex;
+				align-items: center;
+				gap: 8px;
+				background: #000000;
+				color: white;
+				padding: 12px 24px;
+				border-radius: 25px;
+				text-decoration: none;
+				font-weight: bold;
+				transition: background-color 0.3s ease;
+				border: none;
+				cursor: pointer;
+				font-size: 16px;
+			}
+			.share-button:hover {
+				background: #333333;
+			}
+			.share-button svg {
+				width: 20px;
+				height: 20px;
+			}
+			.share-text {
+				margin-bottom: 15px;
+				font-size: 16px;
+				color: #333;
+			}
 		</style>
 	</head>
 	<body>
@@ -212,11 +289,50 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 			</div>
 		</div>
 
+		<div class="share-section">
+			<div class="share-text">otagaoの財政状況をシェアしよう</div>
+			<a href="#" class="share-button" id="twitterShare">
+				<svg viewBox="0 0 24 24" fill="currentColor">
+					<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+				</svg>
+				Xでシェア
+			</a>
+		</div>
+
 		<div class="chart-container">
 			<h3>収入 vs 支出</h3>
 			<div id="chart-wrapper">
 				<canvas id="incomeExpenseChart"></canvas>
 			</div>
+		</div>
+
+		<div class="wishlist">
+			<h3>買いたいものリスト</h3>
+			{wishlist.length > 0 ? (
+				<div>
+					{wishlist.map(item => (
+						<div class={`wishlist-item ${item.checked ? 'checked' : ''}`}>
+							<div class="wishlist-left">
+								<input 
+									type="checkbox" 
+									class="wishlist-checkbox"
+									checked={item.checked}
+									disabled
+								/>
+								<div>
+									<div>{item.title}</div>
+									<div class="wishlist-category">{item.category}</div>
+								</div>
+							</div>
+							<div class="wishlist-price">
+								¥{item.price.toLocaleString()}
+							</div>
+						</div>
+					))}
+				</div>
+			) : (
+				<p>買いたいものがありません</p>
+			)}
 		</div>
 
 		<div class="timeline">
@@ -246,7 +362,7 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 		</div>
 
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-		<script define:vars={{ chartData }} is:inline>
+		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance }} is:inline>
 			// Wait for DOM to load
 			document.addEventListener('DOMContentLoaded', function() {
 				// Initialize Chart.js
@@ -332,6 +448,27 @@ const currentMonthName = monthNames[currentDate.getMonth()];
 							}
 						}
 					}
+				});
+				
+				// Twitter share functionality
+				document.getElementById('twitterShare').addEventListener('click', function(e) {
+					e.preventDefault();
+					
+					const currentUrl = window.location.href;
+					const balance = netBalance >= 0 ? `+¥${netBalance.toLocaleString()}` : `¥${netBalance.toLocaleString()}`;
+					const status = netBalance >= 0 ? '財政健全化達成🎉' : '財政ピンチ😱';
+					
+					const tweetText = `otagaoの財政健全化を監視しよう👀
+
+2025年7月の収支状況:
+💰 総収入: ¥${totalIncome.toLocaleString()}
+💸 総支出: ¥${totalExpense.toLocaleString()}
+📈 純収支: ${balance}
+
+${status}`;
+					
+					const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(currentUrl)}`;
+					window.open(twitterUrl, '_blank');
 				});
 			});
 		</script>

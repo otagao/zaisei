@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "title": "延長リアキャリア",
+    "price": 9000,
+    "category": "バイク関連",
+    "checked": false
+  },
+  {
+    "id": 2,
+    "title": "リアボックス",
+    "price": 15000,
+    "category": "バイク関連",
+    "checked": false
+  },
+  {
+    "id": 3,
+    "title": "サーバー用PC",
+    "price": 30000,
+    "category": "サーバー関連",
+    "checked": false
+  },
+  {
+    "id": 4,
+    "title": "メッシュジャケット",
+    "price": 13000,
+    "category": "バイク関連",
+    "checked": false
+  },
+  {
+    "id": 5,
+    "title": "ジェットヘルメット",
+    "price": 20000,
+    "category": "バイク関連",
+    "checked": false
+  }
+]
