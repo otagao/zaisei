@@ -62,6 +62,37 @@ const sortedTransactions = transactions.sort((a, b) =>
   new Date(b.data.date).getTime() - new Date(a.data.date).getTime()
 );
 
+// Calculate cumulative totals up to a specific date
+const calculateCumulativeTotals = (targetDate: Date) => {
+  const targetDateString = targetDate.toISOString().split('T')[0];
+  
+  const cumulativeTransactions = transactions.filter(t => {
+    const transactionDate = new Date(t.data.date).toISOString().split('T')[0];
+    return transactionDate <= targetDateString;
+  });
+  
+  const cumulativeIncome = cumulativeTransactions
+    .filter(t => t.data.type === 'income')
+    .reduce((sum, t) => sum + t.data.amount, 0);
+  
+  const cumulativeExpense = cumulativeTransactions
+    .filter(t => t.data.type === 'expense')
+    .reduce((sum, t) => sum + t.data.amount, 0);
+  
+  return { cumulativeIncome, cumulativeExpense };
+};
+
+// Get today's and yesterday's cumulative totals
+const yesterday = new Date(today);
+yesterday.setDate(yesterday.getDate() - 1);
+
+const todayCumulative = calculateCumulativeTotals(today);
+const yesterdayCumulative = calculateCumulativeTotals(yesterday);
+
+// Calculate cumulative differences
+const cumulativeIncomeDiff = todayCumulative.cumulativeIncome - yesterdayCumulative.cumulativeIncome;
+const cumulativeExpenseDiff = todayCumulative.cumulativeExpense - yesterdayCumulative.cumulativeExpense;
+
 
 // Load wishlist data
 const wishlistData = await import('../wishlist.json');
@@ -362,7 +393,7 @@ const wishlist = wishlistData.default;
 		</div>
 
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance }} is:inline>
+		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance, cumulativeIncomeDiff, cumulativeExpenseDiff }} is:inline>
 			// Wait for DOM to load
 			document.addEventListener('DOMContentLoaded', function() {
 				// Initialize Chart.js
@@ -458,11 +489,21 @@ const wishlist = wishlistData.default;
 					const balance = netBalance >= 0 ? `+¥${netBalance.toLocaleString()}` : `¥${netBalance.toLocaleString()}`;
 					const status = netBalance >= 0 ? '財政健全化達成🎉' : '財政ピンチ😱';
 					
+					// Format daily difference strings
+					const formatDailyDiff = (amount) => {
+						if (amount === 0) return '前日比±0';
+						const sign = amount > 0 ? '+' : '';
+						return `前日比${sign}${amount.toLocaleString()}`;
+					};
+					
+					const incomeDiffText = formatDailyDiff(cumulativeIncomeDiff);
+					const expenseDiffText = formatDailyDiff(cumulativeExpenseDiff);
+					
 					const tweetText = `otagaoの財政健全化を監視しよう👀
 
 2025年7月の収支状況:
-💰 総収入: ¥${totalIncome.toLocaleString()}
-💸 総支出: ¥${totalExpense.toLocaleString()}
+💰 総収入: ¥${totalIncome.toLocaleString()} ${incomeDiffText}
+💸 総支出: ¥${totalExpense.toLocaleString()} ${expenseDiffText}
 📈 純収支: ${balance}
 
 ${status}`;
