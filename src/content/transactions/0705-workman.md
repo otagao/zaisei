@@ -1,5 +1,5 @@
 ---
-title: "ジャケット"
+title: "ジャケット @ワークマン"
 date: 2025-07-05
 amount: 2203
 type: expense
