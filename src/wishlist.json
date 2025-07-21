@@ -18,7 +18,7 @@
     "title": "サーバー用PC",
     "price": 30000,
     "category": "サーバー関連",
-    "checked": false
+    "checked": true
   },
   {
     "id": 4,
