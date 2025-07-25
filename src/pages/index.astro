@@ -1,43 +1,49 @@
 ---
 // @ts-nocheck
-import { getCollection } from 'astro:content';
+import fs from 'fs';
+import { parseCSV, type Transaction } from '../utils/csvParser';
 
-// Get all transactions
-const transactions = await getCollection('transactions');
+// Read CSV file and parse transactions
+const csvPath = './src/content/transactions.csv';
+const csvContent = fs.readFileSync(csvPath, 'utf-8');
+const transactions = parseCSV(csvContent);
 
-// Check if we're past July 2025
+// 対象日をハードコード（財政健全化の目標日）
+const targetDate = new Date('2025-08-10'); // ここで目標日時を設定
 const currentDate = new Date();
-const isPostJuly2025 = currentDate.getFullYear() > 2025 || 
-                      (currentDate.getFullYear() === 2025 && currentDate.getMonth() > 6);
+const isPostTargetDate = currentDate >= targetDate;
 
 // Calculate totals based on all transaction data
 const totalIncome = transactions
-  .filter(t => t.data.type === 'income')
-  .reduce((sum, t) => sum + t.data.amount, 0);
+  .filter(t => t.type === 'income')
+  .reduce((sum, t) => sum + t.amount, 0);
 
 const totalExpense = transactions
-  .filter(t => t.data.type === 'expense')
-  .reduce((sum, t) => sum + t.data.amount, 0);
+  .filter(t => t.type === 'expense')
+  .reduce((sum, t) => sum + t.amount, 0);
 
 const netBalance = totalIncome - totalExpense;
 
-// Calculate days remaining until end of month
+// Calculate days remaining until target date
 const today = new Date();
-const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-const daysRemaining = Math.max(0, lastDayOfMonth.getDate() - today.getDate());
+const timeDiff = targetDate.getTime() - today.getTime();
+const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
+
+// Format target date for display (M月D日形式)
+const targetDateFormatted = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日`;
 
 // Group by category for charts
 const incomeByCategory = transactions
-  .filter(t => t.data.type === 'income')
+  .filter(t => t.type === 'income')
   .reduce((acc, t) => {
-    acc[t.data.category] = (acc[t.data.category] || 0) + t.data.amount;
+    acc[t.category] = (acc[t.category] || 0) + t.amount;
     return acc;
   }, {} as Record<string, number>);
 
 const expenseByCategory = transactions
-  .filter(t => t.data.type === 'expense')
+  .filter(t => t.type === 'expense')
   .reduce((acc, t) => {
-    acc[t.data.category] = (acc[t.data.category] || 0) + t.data.amount;
+    acc[t.category] = (acc[t.category] || 0) + t.amount;
     return acc;
   }, {} as Record<string, number>);
 
@@ -57,27 +63,25 @@ const chartData = {
   totalExpense
 };
 
-// Sort transactions by date (newest first)
-const sortedTransactions = transactions.sort((a, b) => 
-  new Date(b.data.date).getTime() - new Date(a.data.date).getTime()
-);
+// Keep transactions in CSV order (as requested - CSV記載順（降順）)
+const sortedTransactions = [...transactions].reverse();
 
 // Calculate cumulative totals up to a specific date
 const calculateCumulativeTotals = (targetDate: Date) => {
   const targetDateString = targetDate.toISOString().split('T')[0];
   
   const cumulativeTransactions = transactions.filter(t => {
-    const transactionDate = new Date(t.data.date).toISOString().split('T')[0];
+    const transactionDate = new Date(t.date).toISOString().split('T')[0];
     return transactionDate <= targetDateString;
   });
   
   const cumulativeIncome = cumulativeTransactions
-    .filter(t => t.data.type === 'income')
-    .reduce((sum, t) => sum + t.data.amount, 0);
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
   
   const cumulativeExpense = cumulativeTransactions
-    .filter(t => t.data.type === 'expense')
-    .reduce((sum, t) => sum + t.data.amount, 0);
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
   
   return { cumulativeIncome, cumulativeExpense };
 };
@@ -292,7 +296,7 @@ const wishlist = wishlistData.default;
 		<div class="header">
 			<h1>収支ダッシュボード</h1>
 			<div class="balance">
-				{isPostJuly2025 ? (
+				{isPostTargetDate ? (
 					netBalance >= 0 ? (
 						<span class="positive">otagaoは財政健全化に成功しました🎉</span>
 					) : (
@@ -303,7 +307,7 @@ const wishlist = wishlistData.default;
 						<span class="positive">財政健全化達成🎉</span>
 					) : (
 						<span>
-							残り<span class="days-remaining">{daysRemaining}日</span>で
+							{targetDateFormatted}まで残り<span class="days-remaining">{daysRemaining}日</span>で
 							<span class="negative">¥{Math.abs(netBalance).toLocaleString()}</span>！
 						</span>
 					)
@@ -367,22 +371,22 @@ const wishlist = wishlistData.default;
 		</div>
 
 		<div class="timeline">
-			<h3>取引履歴</h3>
+			<h3>履歴</h3>
 			{sortedTransactions.length > 0 ? (
 				<div>
 					{sortedTransactions.map(transaction => (
 						<div class="transaction-item">
 							<div>
-								<div>{transaction.data.title}</div>
+								<div>{transaction.title}</div>
 								<div class="transaction-category">
-									{transaction.data.category}
+									{transaction.category}
 								</div>
 								<div class="transaction-date">
-									{new Date(transaction.data.date).toLocaleDateString('ja-JP')}
+									{new Date(transaction.date).toLocaleDateString('ja-JP')}
 								</div>
 							</div>
-							<div class={`transaction-amount ${transaction.data.type === 'income' ? 'positive' : 'negative'}`}>
-								¥{transaction.data.amount.toLocaleString()}
+							<div class={`transaction-amount ${transaction.type === 'income' ? 'positive' : 'negative'}`}>
+								¥{transaction.amount.toLocaleString()}
 							</div>
 						</div>
 					))}
@@ -393,7 +397,7 @@ const wishlist = wishlistData.default;
 		</div>
 
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance, cumulativeIncomeDiff, cumulativeExpenseDiff }} is:inline>
+		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance, cumulativeIncomeDiff, cumulativeExpenseDiff, targetDate, isPostTargetDate }} is:inline>
 			// Wait for DOM to load
 			document.addEventListener('DOMContentLoaded', function() {
 				// Initialize Chart.js
@@ -487,7 +491,15 @@ const wishlist = wishlistData.default;
 					
 					const currentUrl = window.location.href;
 					const balance = netBalance >= 0 ? `+¥${netBalance.toLocaleString()}` : `¥${netBalance.toLocaleString()}`;
-					const status = netBalance >= 0 ? '財政健全化達成🎉' : '財政ピンチ😱';
+					
+					let status;
+					if (netBalance >= 0) {
+						status = '財政健全化達成🎉';
+					} else if (isPostTargetDate) {
+						status = '健全化失敗😢';
+					} else {
+						status = '財政ピンチ😱';
+					}
 					
 					// Format daily difference strings
 					const formatDailyDiff = (amount) => {
@@ -501,7 +513,7 @@ const wishlist = wishlistData.default;
 					
 					const tweetText = `otagaoの財政健全化を監視しよう👀
 
-2025年7月の収支状況:
+収支状況:
 💰 総収入: ¥${totalIncome.toLocaleString()} ${incomeDiffText}
 💸 総支出: ¥${totalExpense.toLocaleString()} ${expenseDiffText}
 📈 純収支: ${balance}
