@@ -24,13 +24,11 @@ const totalExpense = transactions
 
 const netBalance = totalIncome - totalExpense;
 
-// Calculate days remaining until target date
-const today = new Date();
-const timeDiff = targetDate.getTime() - today.getTime();
-const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
-
-// Format target date for display (M月D日形式)
+// Format target date for display (M月D日形式) - ビルド時に計算
 const targetDateFormatted = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日`;
+
+// 累積計算用のtoday変数（ビルド時の計算で使用）
+const today = new Date();
 
 // Group by category for charts
 const incomeByCategory = transactions
@@ -307,7 +305,7 @@ const wishlist = wishlistData.default;
 						<span class="positive">財政健全化達成🎉</span>
 					) : (
 						<span>
-							{targetDateFormatted}まで残り<span class="days-remaining">{daysRemaining}日</span>で
+							{targetDateFormatted}まで残り<span class="days-remaining" id="countdown-days">--</span>日で
 							<span class="negative">¥{Math.abs(netBalance).toLocaleString()}</span>！
 						</span>
 					)
@@ -397,9 +395,36 @@ const wishlist = wishlistData.default;
 		</div>
 
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance, cumulativeIncomeDiff, cumulativeExpenseDiff, targetDate, isPostTargetDate }} is:inline>
+		<script define:vars={{ chartData, totalIncome, totalExpense, netBalance, cumulativeIncomeDiff, cumulativeExpenseDiff, targetDate }} is:inline>
+			// 残り日数をリアルタイムで更新する関数
+			function updateCountdown() {
+				const today = new Date();
+				const timeDiff = new Date(targetDate).getTime() - today.getTime();
+				const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
+				
+				const countdownElement = document.getElementById('countdown-days');
+				if (countdownElement) {
+					countdownElement.textContent = daysRemaining;
+				}
+			}
+
 			// Wait for DOM to load
 			document.addEventListener('DOMContentLoaded', function() {
+				// 初回実行
+				updateCountdown();
+
+				// 1日1回更新（午前0時に更新）
+				const now = new Date();
+				const tomorrow = new Date(now);
+				tomorrow.setDate(tomorrow.getDate() + 1);
+				tomorrow.setHours(0, 0, 0, 0);
+				const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+				// 最初の午前0時まで待機してから24時間間隔で実行
+				setTimeout(() => {
+					updateCountdown();
+					setInterval(updateCountdown, 24 * 60 * 60 * 1000);
+				}, msUntilMidnight);
 				// Initialize Chart.js
 				const ctx = document.getElementById('incomeExpenseChart').getContext('2d');
 				
@@ -492,6 +517,10 @@ const wishlist = wishlistData.default;
 					const currentUrl = window.location.href;
 					const balance = netBalance >= 0 ? `+¥${netBalance.toLocaleString()}` : `¥${netBalance.toLocaleString()}`;
 					
+					// 現在の日付で目標日判定
+					const currentDate = new Date();
+					const isPostTargetDate = currentDate >= new Date(targetDate);
+
 					let status;
 					if (netBalance >= 0) {
 						status = '財政健全化達成🎉';
